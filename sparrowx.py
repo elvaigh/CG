@@ -106,7 +106,7 @@ def bfs(sx, sy):
         v[cx][cy] = True
     return best
 
-# Optimizations
+# OptimizActions
 sys.setcheckinterval(1000000)
 
 debug=False
@@ -129,13 +129,13 @@ class Case(object):
             zp = self.y
             yp = -(xp + zp)
             return  Cube(xp, yp, zp)
-    def neighbor(self, orientation):
+    def neighbor(self, orientAction):
         if (self.y % 2 == 1):
-                newY = self.y + self.oddDir[orientation][1]
-                newX = self.x + self.oddDir[orientation][0]
+                newY = self.y + self.oddDir[orientAction][1]
+                newX = self.x + self.oddDir[orientAction][0]
         else:
-                newY = self.y + self.evenDir[orientation][1]
-                newX = self.x + self.evenDir[orientation][0]
+                newY = self.y + self.evenDir[orientAction][1]
+                newX = self.x + self.evenDir[orientAction][0]
         return  Case(newX, newY)
     def distanceTo(self,dst): return self.toCubeCoordinate().distanceTo(dst.toCubeCoordinate())
         
@@ -152,10 +152,10 @@ class Cube(object):
             newX = self.x + (self.z - (self.z & 1)) / 2
             newY = self.z
             return Case(newX, newY)
-    def neighbor(self, orientation):
-            nx = self.x + self.directions[orientation][0]
-            ny = self.y + self.directions[orientation][1]
-            nz = self.z + self.directions[orientation][2]
+    def neighbor(self, orientAction):
+            nx = self.x + self.directions[orientAction][0]
+            ny = self.y + self.directions[orientAction][1]
+            nz = self.z + self.directions[orientAction][2]
             return Cube(nx, ny, nz)
     def distanceTo(self,dst):return (abs(self.x - dst.x) + abs(self.y - dst.y) + abs(self.z - dst.z)) // 2
     
@@ -167,10 +167,10 @@ class Ship(Entity):
     def __init__(self,entityId,arg1,arg2,arg3,arg4,x,y):
         Entity.__init__(self,entityId,x,y)
         self.initialHealth=100
-        self.orientation,self.speed,self.rhum,self.owner=arg1,arg2,arg3,arg4 
+        self.orientAction,self.speed,self.rhum,self.owner=arg1,arg2,arg3,arg4 
         self.beforeToMine=0
         self.beforeToFire=0
-        self.newOrientation=0
+        self.newOrientAction=0
         self.newBowCoordinate=None
         self.newSternCoordinate=None
         self.action=None
@@ -183,36 +183,36 @@ class Ship(Entity):
         if self.speed==2:self.action=1
         elif self.speed==1:
             #Suppose we've moved first
-            currentPosition = currentPosition.neighbor(self.orientation)
-            if (not currentPosition.valide()):self.action =1;break
+            currentPosition = currentPosition.neighbor(self.orientAction)
+            if (not currentPosition.valide()):self.action =1;return
             #Target reached at next turn
-            if (currentPosition.equals(targetPosition)):self.action = None;break
+            if (currentPosition.equals(targetPosition)):self.action = None;return
             #For each neighbor cell, find the closest to target
             targetAngle = currentPosition.angle(targetPosition)
-            angleStraight = min(abs(self.orientation - targetAngle), 6 - abs(self.orientation - targetAngle))
-            anglePort = min(abs((self.orientation + 1) - targetAngle), abs((self.orientation - 5) - targetAngle))
-            angleStarboard = min(abs((self.orientation + 5) - targetAngle), abs((self.orientation - 1) - targetAngle))
+            angleStraight = min(abs(self.orientAction - targetAngle), 6 - abs(self.orientAction - targetAngle))
+            anglePort = min(abs((self.orientAction + 1) - targetAngle), abs((self.orientAction - 5) - targetAngle))
+            angleStarboard = min(abs((self.orientAction + 5) - targetAngle), abs((self.orientAction - 1) - targetAngle))
 
-            centerAngle = currentPosition.angle(new Coord(MAP_WIDTH / 2, MAP_HEIGHT / 2))
-            anglePortCenter = min(abs((self.orientation + 1) - centerAngle), abs((self.orientation - 5) - centerAngle))
-            angleStarboardCenter = min(abs((self.orientation + 5) - centerAngle), abs((self.orientation - 1) - centerAngle))
+            centerAngle = currentPosition.angle(Coord(23 // 2, 21 // 2))
+            anglePortCenter = min(abs((self.orientAction + 1) - centerAngle), abs((self.orientAction - 5) - centerAngle))
+            angleStarboardCenter = min(abs((self.orientAction + 5) - centerAngle), abs((self.orientAction - 1) - centerAngle))
             #Next to target with bad angle, slow down then rotate (avoid to turn around the target!)
-            if (currentPosition.distanceTo(targetPosition) == 1 and angleStraight > 1.5):self.action = 1;break
+            if (currentPosition.distanceTo(targetPosition) == 1 and angleStraight > 1.5):self.action = 1;return
 
             distanceMin = None
             # Test forward
-            nextPosition = currentPosition.neighbor(self.orientation)
+            nextPosition = currentPosition.neighbor(self.orientAction)
             if (nextPosition.valide()):distanceMin = nextPosition.distanceTo(targetPosition);self.action =None
             #Test port
-            nextPosition = currentPosition.neighbor((self.orientation + 1) % 6)
+            nextPosition = currentPosition.neighbor((self.orientAction + 1) % 6)
             if (nextPosition.valide()):
                 distance = nextPosition.distanceTo(targetPosition)
                 if (distanceMin == None or distance < distanceMin or distance == distanceMin and anglePort < angleStraight - 0.5):
                     distanceMin = distance
                     self.action = 2
-                    break
+                    return
             #Test starboard
-            nextPosition = currentPosition.neighbor((self.orientation + 5) % 6)
+            nextPosition = currentPosition.neighbor((self.orientAction + 5) % 6)
             if (nextPosition.valide()):
                 distance = nextPosition.distanceTo(targetPosition)
                 if (distanceMin == None or distance < distanceMin
@@ -221,40 +221,39 @@ class Ship(Entity):
                         or (distance == distanceMin and self.action == 2 and angleStarboard == anglePort
                                 and angleStarboardCenter < anglePortCenter)
                         or (distance == distanceMin and self.action == 2 and angleStarboard == anglePort
-                                and angleStarboardCenter == anglePortCenter and (self.orientation == 1 or self.orientation == 4))):
+                                and angleStarboardCenter == anglePortCenter and (self.orientAction == 1 or self.orientAction == 4))):
                     distanceMin = distance
                     self.action = 3
-                    break
+                    return
         elif self.speed==1:
             #Rotate ship towards target
             targetAngle = currentPosition.angle(targetPosition)
-            angleStraight = min(abs(self.orientation - targetAngle), 6 - abs(self.orientation - targetAngle))
-            anglePort = min(abs((self.orientation + 1) - targetAngle), abs((self.orientation - 5) - targetAngle))
-            angleStarboard = min(abs((self.orientation + 5) - targetAngle), abs((self.orientation - 1) - targetAngle))
+            angleStraight = min(abs(self.orientAction - targetAngle), 6 - abs(self.orientAction - targetAngle))
+            anglePort = min(abs((self.orientAction + 1) - targetAngle), abs((self.orientAction - 5) - targetAngle))
+            angleStarboard = min(abs((self.orientAction + 5) - targetAngle), abs((self.orientAction - 1) - targetAngle))
 
-            centerAngle = currentPosition.angle(new Coord(MAP_WIDTH / 2, MAP_HEIGHT / 2))
-            anglePortCenter = min(abs((self.orientation + 1) - centerAngle), abs((self.orientation - 5) - centerAngle))
-            angleStarboardCenter = min(abs((self.orientation + 5) - centerAngle), abs((self.orientation - 1) - centerAngle))
-            forwardPosition = currentPosition.neighbor(self.orientation)
+            centerAngle = currentPosition.angle(Coord(23 / 2, 21 / 2))
+            anglePortCenter = min(abs((self.orientAction + 1) - centerAngle), abs((self.orientAction - 5) - centerAngle))
+            angleStarboardCenter = min(abs((self.orientAction + 5) - centerAngle), abs((self.orientAction - 1) - centerAngle))
+            forwardPosition = currentPosition.neighbor(self.orientAction)
             self.action = None
 
             if (anglePort <= angleStarboard):self.action = 2
           
             if (angleStarboard < anglePort or angleStarboard == anglePort and angleStarboardCenter < anglePortCenter
-                    or angleStarboard == anglePort and angleStarboardCenter == anglePortCenter and (self.orientation == 1 or self.orientation == 4)):self.action =3
+                    or angleStarboard == anglePort and angleStarboardCenter == anglePortCenter and (self.orientAction == 1 or self.orientAction == 4)):self.action =3
         
             if (forwardPosition.valide() and angleStraight <= anglePort and angleStraight <= angleStarboard):self.action =3
-            break
 
     def faster(self):self.action = 0
     def slower(self) :self.action = 1
     def port(self):self.action =2
-    def starboard(self)self.action =3
+    def starboard(self):self.action =3
     def placeMine(self):self.action = 4
-    def stern(self) : return self.position.neighbor((self.orientation + 3) % 6)
-    def bow(self):return self.position.neighbor(self.orientation)
-    def newStern(self):self.position.neighbor((self.newOrientation + 3) % 6)
-    def newBow(self):return self.position.neighbor(self.newOrientation)
+    def stern(self) : return self.position.neighbor((self.orientAction + 3) % 6)
+    def bow(self):return self.position.neighbor(self.orientAction)
+    def newStern(self):self.position.neighbor((self.newOrientAction + 3) % 6)
+    def newBow(self):return self.position.neighbor(self.newOrientAction)
     def fire(self,x,y):self.target = Coord(x, y);self.action = 5
     def heal(self, health):
         self.rhum+=health
@@ -265,8 +264,8 @@ class Ship(Entity):
         return newBowIntersect(other) or sternCollision or centerCollision
     def newPositionsIntersect(self,ships):
         for other in ships:
-            if (self != other && self.newPositionsIntersect(other)):return true
-        return false
+            if (self != other and self.newPositionsIntersect(other)):return True
+        return False
     def damage(self, health):
         self.rhum -= health
         if (self.rhum <= 0):self.rhum= 0
@@ -278,7 +277,7 @@ class Ship(Entity):
                 c=s.position
                 d=self.position.distanceTo(c)
                 tours=round((d+1)//3)    
-                for i in range(tours*s.speed):c=c.neighbor(s.orientation)
+                for i in range(tours*s.speed):c=c.neighbor(s.orientAction)
                 d=c.distanceTo(self.position)
                 if d<=10 and c.valide():self.beforeToFire=1;gameGrid[c.x][c.y]=50;return Fire(c.x,c.y)
         return None'''
@@ -297,9 +296,9 @@ class Mine(Entity):
 
         for ship in ships:
             if position.equals(ship.bow()) or position.equals(ship.stern()) or position.equals(ship.position):
-            damage +=[Damage(self.position, 25, True)]
-            ship.damage(25)
-            victim = ship
+	            damage +=[Damage(self.position, 25, True)]
+	            ship.damage(25)
+	            victim = ship
 
         if (force or victim != None):
             if (victim == None):damage +=[Damage(self.position, 25, True)]
@@ -317,37 +316,37 @@ class Mine(Entity):
 
 class Cannoball(Entity):
     def __init__(self,entityId,x,y,arg1,arg2):Entity.__init__(self,entityId,x,y);self.owner,self.remainingTurns=arg1,arg2
-class Ation(object):
+class Action(object):
     def __init__(self,x,y):self.x,self.y=x,y
-class Move(Ation):
-     def __init__(self,x,y):ACTION.__init__(self,x,y)
+class Move(Action):
+     def __init__(self,x,y):Action.__init__(self,x,y)
      def __str__(self):return "MOVE {} {}".format(self.x, self.y)
      def utility(self,player):return maxBareel-payer.ships[-1].rhum+1
      
-class Fire(Ation):
-     def __init__(self,x,y):ACTION.__init__(self,x,y)
+class Fire(Action):
+     def __init__(self,x,y):Action.__init__(self,x,y)
      def __str__(self):return "FIRE {} {}".format(self.x, self.y)
      def utility(self):return 1
-class Port(Ation):
-    def __init__(self,x,y):ACTION.__init__(self,x,y)
+class Port(Action):
+    def __init__(self,x,y):Action.__init__(self,x,y)
     def __str__(self):return "PORT"
     
-class Starboard(Ation):
-    def __init__(self,x,y):ACTION.__init__(self,x,y)
+class Starboard(Action):
+    def __init__(self,x,y):Action.__init__(self,x,y)
     def __str__(self):return "Starboard"
     
-class Faster(Ation):
-    def __init__(self,x,y):ACTION.__init__(self,x,y)
+class Faster(Action):
+    def __init__(self,x,y):Action.__init__(self,x,y)
     def __str__(self):return "Faster"
 
-class Slower(Ation):
-    def __init__(self,x,y):ACTION.__init__(self,x,y)
+class Slower(Action):
+    def __init__(self,x,y):Action.__init__(self,x,y)
     def __str__(self):return "Slower"
     
-class Wait(Ation):
-    def __init__(self,x,y):ACTION.__init__(self,x,y)
+class Wait(Action):
+    def __init__(self,x,y):Action.__init__(self,x,y)
     def __str__(self):return "Wait"
-class Mine(Wait):
+class Fire(Wait):
     def __init__(self,x,y):Wait.__init__(self,x,y)
     def __str__(self):return "MINE"
         
@@ -358,11 +357,10 @@ class Player(object):
         actions=[]
         global gameGrid
         for s in self.ships:
-             actions=[s.fire(game.players[0].ships)]+[s.move(game.barrels)]+[s.slower()]+[s.faster()]+[s.starboard()]+[s.port()]+[s.mine()]
              tmp=-50
-             mm=MOVE(11,10)
-             for a in actions:
-                 if a and gameGrid[a.x][a.y]>tmp:mm=a;tmp=gameGrid[a.x][a.y]
+             mm=Move(11,10)
+             #for a in actions:
+             #   if a and gameGrid[a.x][a.y]>tmp:mm=a;tmp=gameGrid[a.x][a.y]
              print(mm)
              
 class Game(object):
@@ -396,14 +394,14 @@ class Game(object):
     def decrementRum(self):
         ships=self.players[0].ships+self.players[1].ships
         for ship in self.ships:ship.damage(1)
-    def void updateInitialRum(self):
+    def updateInitialRum(self):
         ships=self.players[0].ships+self.players[1].ships
         for ship in ships:
             ship.initialHealth = ship.rhum
     def moveCannonballs(self):
         for ball in self.cannonballs:
             if (ball.remainingTurns == 0):del canon;continue
-            else if (ball.remainingTurns > 0):ball.remainingTurns--
+            elif ball.remainingTurns > 0 :ball.remainingTurns-=1
             if (ball.remainingTurns == 0):self.cannonBallExplosions+=[ball.position]
     def checkBarrelCollisions(self, ship):
         bow = ship.bow()
@@ -431,22 +429,22 @@ class Game(object):
                 ship.newBowCoordinate = ship.bow()
                 ship.newSternCoordinate = ship.stern()
                 if (i > ship.speed):continue
-                newCoordinate = ship.position.neighbor(ship.orientation)
+                newCoordinate = ship.position.neighbor(ship.orientAction)
                 if (newCoordinate.valide()):
                     # Set new coordinate.
                     ship.newPosition = newCoordinate
-                    ship.newBowCoordinate = newCoordinate.neighbor(ship.orientation)
-                    ship.newSternCoordinate = newCoordinate.neighbor((ship.orientation + 3) % 6)
+                    ship.newBowCoordinate = newCoordinate.neighbor(ship.orientAction)
+                    ship.newSternCoordinate = newCoordinate.neighbor((ship.orientAction + 3) % 6)
                 else:
                     #Stop ship!
                     ship.speed = 0
 
             #Check ship and obstacles collisions
             collisions = []
-            collisionDetected = true
+            collisionDetected = True
             while (collisionDetected):
-                collisionDetected = false
-                for (Ship ship : this.ships):
+                collisionDetected = False
+                for ship in ships:
                     if (ship.newBowIntersect(ships)):collisions.add(ship)
 
                 for ship in collisions:
@@ -455,10 +453,10 @@ class Game(object):
                     ship.newBowCoordinate = ship.bow()
                     ship.newSternCoordinate = ship.stern()
                     ship.speed = 0
-                    collisionDetected = true
+                    collisionDetected = True
                 
                 collisions=[]
-                #Move ships to their new location
+                #Move ships to their new locAction
                 for ship in ships : ship.position = ship.newPosition
             self.checkCollisions()
     def rotateShips(self):
@@ -469,21 +467,21 @@ class Game(object):
             ship.newBowCoordinate = ship.newBow()
             ship.newSternCoordinate = ship.newStern()
         #Check collisions
-        collisionDetected = true
+        collisionDetected = True
         collisions =[]
         while (collisionDetected):
-            collisionDetected = false
+            collisionDetected = False
             for ship in ships:
                 if (ship.newPositionsIntersect(ships)):collisions+=[ship]
             for ship in collisions:
-            ship.newOrientation = ship.orientation
-            ship.newBowCoordinate = ship.newBow()
-            ship.newSternCoordinate = ship.newStern()
-            ship.speed = 0
-            collisionDetected = true
+	            ship.newOrientAction = ship.orientAction
+	            ship.newBowCoordinate = ship.newBow()
+	            ship.newSternCoordinate = ship.newStern()
+	            ship.speed = 0
+	            collisionDetected = True
             collisions=[]
-        #Apply rotation
-        forship in ships:ship.orientation = ship.newOrientation
+        #Apply rotAction
+        for ship in ships:ship.orientAction = ship.newOrientAction
         self.checkCollisions()
 
     def gameIsOver(self):
@@ -493,14 +491,14 @@ class Game(object):
 
     def explodeShips(self):
         ships=self.players[0].ships+self.players[1].ships
-        for position in self cannonBallExplosions:
+        for position in self.cannonBallExplosions:
             for ship in ships:
                 if (position.equals(ship.bow()) or position.equals(ship.stern())):
                     self.damage+=[Damage(position, 25, True)]
                     ship.damage(25)
                     del position
                     break
-                else if (position.equals(ship.position)):
+                elif (position.equals(ship.position)):
                     self.damage+=[Damage(position, 25, True)]
                     ship.damage(50)
                     del position
@@ -546,34 +544,37 @@ class Game(object):
 
     
     def applyActions(self):
-        for p in self.players:
-            for ship in p.ships:
-                if ship.beforeToMine>0:ship.beforeToMine-=1
-                if ship.beforeToFire>0:ship.beforeToFire-=1
-                ship.newOrientation = ship.orientation
-                if (ship.action != None):
-                    if ship.action==0:
-                        if (ship.speed < 2):ship.speed+=1
-                    elif ship.action==1:
-                        if (ship.speed >0):ship.speed-=1
-                    elif ship.action==2:ship.newOrientation = (ship.orientation + 1) % 6
-                    elif ship.action==3:ship.newOrientation = (ship.orientation + 3) % 6
-                elif ship.action==4:
-                     if (ship.beforeToMine == 0):
-                        target = ship.stern().neighbor((ship.orientation + 3) % 6)
-                        if (target.valide()):
-                            cellIsFreeOfBarrels =self.barrels.stream().noneMatch(barrel -> barrel.position.equals(target))
-                            cellIsFreeOfMines = self.mines.stream().noneMatch(mine -> mine.position.equals(target))
-                            cellIsFreeOfShips = self.ships.stream().filter(b -> b != ship).noneMatch(b -> b.at(target))
-                            if (cellIsFreeOfBarrels and  cellIsFreeOfShips and cellIsFreeOfMines):
-                                ship.beforeToMine = 5
-                                self.mines+=[Mine(target.x, target.y)]
-                elif ship.action==5:
-                    distance = ship.bow().distanceTo(ship.target)
-                    if (ship.target.valide() and distance <= 10 and ship.beforeToFire == 0):
-                        travelTime = (int) (1 + round(ship.bow().distanceTo(ship.target) / 3.0))
-                        cannonballs+=[Cannonball(ship.target.x, ship.target.y, ship.id, ship.bow().x, ship.bow().y, travelTime)]
-                        ship.beforeToFire=2
+        ships=self.players[0].ships+self.players[1].ships
+        for ship in ships:
+            if ship.beforeToMine>0:ship.beforeToMine-=1
+            if ship.beforeToFire>0:ship.beforeToFire-=1
+            ship.newOrientAction = ship.orientAction
+            if (ship.action != None):
+                if ship.action==0:
+                    if (ship.speed < 2):ship.speed+=1
+                elif ship.action==1:
+                    if (ship.speed >0):ship.speed-=1
+                elif ship.action==2:ship.newOrientAction = (ship.orientAction + 1) % 6
+                elif ship.action==3:ship.newOrientAction = (ship.orientAction + 3) % 6
+            elif ship.action==4:
+                 if (ship.beforeToMine == 0):
+                    target = ship.stern().neighbor((ship.orientAction + 3) % 6)
+                    if (target.valide()):
+                        cellIsFreeOfBarrels=None
+                        cellIsFreeOfMines=None
+                        cellIsFreeOfShips=None
+                        for barrel in self.barrels:cellIsFreeOfBarrels=not barrel.position.equals(target)
+                        for mine in self.mines:cellIsFreeOfMines = not mine.position.equals(target)
+                        for oShip in ships:cellIsFreeOfShips = (oShip!=ship and not oShip.position.equals(target))
+                        if (cellIsFreeOfBarrels and  cellIsFreeOfShips and cellIsFreeOfMines):
+                            ship.beforeToMine = 5
+                            self.mines+=[Mine(target.x, target.y)]
+            elif ship.action==5:
+                distance = ship.bow().distanceTo(ship.target)
+                if (ship.target.valide() and distance <= 10 and ship.beforeToFire == 0):
+                    travelTime = (int) (1 + round(ship.bow().distanceTo(ship.target) / 3.0))
+                    cannonballs+=[Cannonball(ship.target.x, ship.target.y, ship.id, ship.bow().x, ship.bow().y, travelTime)]
+                    ship.beforeToFire=2
     def clone(self): 
         g=Game()
         g.players=copy.copy(self.players)    
