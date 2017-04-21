@@ -214,6 +214,7 @@ class Player(object):
 class Referee(object):
     
     def __init__(self):
+        self.seed=123456789
         self.MAP_WIDTH=23
         self.MAP_HEIGHT=21
         self.COOLDOWN_CANNON = 2
@@ -238,6 +239,8 @@ class Referee(object):
         self.NEAR_MINE_DAMAGE = 10
         self.CANNONS_ENABLED=True
         self.MINES_ENABLED=True
+        self.random=0
+        self.mineCount=0
 
         self.PLAYER_INPUT_MOVE_PATTERN = re.compile("MOVE (?<x>-?[0-9]{1,8})\\s+(?<y>-?[0-9]{1,8})(?:\\s+(?<message>.+))?",flags=re.IGNORECASE)
         self.PLAYER_INPUT_SLOWER_PATTERN = Pattern.compile("SLOWER(?:\\s+(?<message>.+))?", flags=re.IGNORECASE)
@@ -249,6 +252,74 @@ class Referee(object):
         self.PLAYER_INPUT_MINE_PATTERN = Pattern.compile("MINE(?:\\s+(?<message>.+))?", flags=re.IGNORECASE)
 
         self.players,self.mines,self.barrels,self.cannonballs,self.cannonBallExplosions,self.damage,self.turn=[],[],[],[],[],[],0
+    def initReferee(playerCount, prop) :
+        self.seed = self.parseProperty(prop, "seed", random.seed(datetime.now()))
+        self.random = random.seed(self.seed)
+        shipsPerPlayer = self.clamp(int(self.parseProperty(prop, "shipsPerPlayer", random.randInt(1 + self.MAX_SHIPS - self.MIN_SHIPS) + self.MIN_SHIPS)), self.MIN_SHIPS,self.MAX_SHIPS)
+
+        if (self.MAX_MINES > self.MIN_MINES):
+            self.mineCount = self.clamp(int(self.parseProperty(prop, "mineCount", random.nextInt(MAX_MINES - MIN_MINES) + MIN_MINES)), MIN_MINES, MAX_MINES)
+        else:mineCount = self.MIN_MINES
+        self.self.barrelCount = self.clamp(int(self.parseProperty(prop, "barrelCount", random.randInt(self.MAX_RUM_BARRELS - self.MIN_RUM_BARRELS) + self.MIN_RUM_BARRELS)),self.MIN_RUM_BARRELS, self.MAX_RUM_BARRELS)
+        
+        cannonballs = []
+        cannonBallExplosions = []
+        damage =[]
+
+        # Generate Players
+        self.players = []
+        for i in range(self.playerCount):self.players+=[Player(i)]
+        
+        #Generate Ships
+        for j in range(self.shipsPerPlayer):
+            xMin = 1 + j * self.MAP_WIDTH // self.shipsPerPlayer;
+            xMax = (j + 1) * self.MAP_WIDTH // self.shipsPerPlayer - 2
+
+            y = 1 + random.nextInt(MAP_HEIGHT // 2 - 2)
+            x = xMin + random.nextInt(1 + xMax - xMin)
+            orientation = random.randInt(0,6)
+
+            ship0 = Ship(x, y, orientation, 0)
+            ship1 = Ship(x, self.MAP_HEIGHT - 1 - y, (6 - orientation) % 6, 1)
+
+            self.players[0].ships+=[ship0]
+            self.players[1].ships+=[ship1]
+            self.players[0].shipsAlive+=[ship0]
+            self.players[0].shipsAlive+=[ship1]
+
+        self.ships = self.players[0]+self.players[1]
+
+        #Generate mines
+        self.mines = []
+        while len(self.mines)< self.mineCount:
+            x = 1 + random.randInt(0,self.MAP_WIDTH - 2)
+            y = 1 + random.randInt(0,self.MAP_HEIGHT // 2)
+
+            m = Mine(x, y)
+
+            cellIsFreeOfMines = mines.stream().noneMatch(mine -> mine.position.equals(m.position));
+            cellIsFreeOfShips = ships.stream().noneMatch(ship -> ship.at(m.position));
+
+            if (cellIsFreeOfShips && cellIsFreeOfMines) {
+                if (y != self.MAP_HEIGHT - 1 - y):self.mines+=[Mine(x, self.MAP_HEIGHT - 1 - y)]
+                self.mines+=[m]
+        self.mineCount =len(self.mines)
+
+        #Generate supplies
+        barrels = []
+        while (len(barrels)< self.barrelCount) :
+            x = 1 + random.randInt(MAP_WIDTH - 2)
+            y = 1 + random.randInt(MAP_HEIGHT // 2)
+            h = self.MIN_RUM_BARREL_VALUE + random.randInt(0,1 + self.MAX_RUM_BARREL_VALUE - self.MIN_RUM_BARREL_VALUE)
+            m = RumBarrel(x, y, h);
+            cellIsFreeOfBarrels = barrels.stream().noneMatch(barrel -> barrel.position.equals(m.position));
+            cellIsFreeOfMines = mines.stream().noneMatch(mine -> mine.position.equals(m.position));
+            cellIsFreeOfShips = ships.stream().noneMatch(ship -> ship.at(m.position));
+            if (cellIsFreeOfShips && cellIsFreeOfMines && cellIsFreeOfBarrels) {
+                if (y != self.MAP_HEIGHT - 1 - y): barrels+=[RumBarrel(x, self.MAP_HEIGHT - 1 - y, h)]
+                barrels+=[m]
+        barrelCount = barrels.size()
+
     def clamp(int val, int min, int max):
         return max(min, min(max, val))
 
@@ -256,8 +327,64 @@ class Referee(object):
         try:return Long.valueOf(prop.getProperty(key));
         except NumberFormatException e:#Ignore invalid data
         return defaultValue
-    
-    
+    def getConfiguration():
+        prop = Properties()
+        prop.setProperty("seed", int(self.seed))
+        prop.setProperty("shipsPerPlayer", int(self.shipsPerPlayer))
+        prop.setProperty("barrelCount", int(self.barrelCount))
+        prop.setProperty("mineCount", int(self.mineCount))
+        return prop
+    def prepare(self, round):
+        for player in self.players:
+            for ship in player.ship:ship.action=None
+        self.cannonBallExplosions=[]
+        self.damage=[]
+    def getExpectedOutputLineCountForPlayer(self,playerIdx):return len(self.players[playerIdx].shipsAlive)
+    def handlePlayerOutput(self,frame, round, playerIdx, outputs):
+        player = self.players[playerIdx]
+        try :
+            i=0
+            for line in outputs:
+                matchWait = self.PLAYER_INPUT_WAIT_PATTERN.matcher(line)
+                matchMove = self.PLAYER_INPUT_MOVE_PATTERN.matcher(line)
+                matchFaster = self.PLAYER_INPUT_FASTER_PATTERN.matcher(line)
+                matchSlower = self.PLAYER_INPUT_SLOWER_PATTERN.matcher(line)
+                matchPort =self.PLAYER_INPUT_PORT_PATTERN.matcher(line)
+                matchStarboard = self.PLAYER_INPUT_STARBOARD_PATTERN.matcher(line)
+                matchFire = self.PLAYER_INPUT_FIRE_PATTERN.matcher(line)
+                matchMine = self.PLAYER_INPUT_MINE_PATTERN.matcher(line)
+                ship = player.shipsAlive[i];i+=1
+                if (matchMove.matches()):
+                    x=int(matchMove.group("x"))
+                    y=int(matchMove.group("y"))
+                    ship.moveTo(x, y)
+                elif(matchFaster.matches()):
+                    #ship.setMessage(matchFaster.group("message"));
+                    ship.faster()
+                elif(matchSlower.matches()):
+                    #ship.setMessage(matchSlower.group("message"));
+                    ship.slower()
+                elif(matchPort.matches()):
+                    #ship.setMessage(matchPort.group("message"));
+                    ship.port()
+                elif(matchStarboard.matches()):
+                    #ship.setMessage(matchStarboard.group("message"));
+                    ship.starboard()
+                elif(matchWait.matches()):
+                    #ship.setMessage(matchWait.group("message"));
+                elif(matchMine.matches()):
+                    #ship.setMessage(matchMine.group("message"));
+                    ship.placeMine()
+                elif(matchFire.matches()):
+                    x=int(matchFire.group("x"))
+                    y=int(matchFire.group("y"))
+                    #ship.setMessage(matchFire.group("message"));
+                    ship.fire(x, y)
+                else:print(InvalidInputException("A valid action", line))
+        except InvalidInputException :
+            player.setDead()
+            print(e)
+
     def decrementRum(self):
         ships=self.players[0].ships+self.players[1].ships
         for ship in self.ships:ship.damage(1)
@@ -407,8 +534,7 @@ class Referee(object):
                 if (reward > 0):self.barrels+=[Barrel(ship.position.x, ship.position.y, reward)];del ship
        
         for position in cannonBallExplosions:damage+=[Damage(position, 0, True)]
-           
-
+        if (gameIsOver()):  print(GameOverException("endReached"))
     
     def applyActions(self):
         ships=self.players[0].ships+self.players[1].ships
