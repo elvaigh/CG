@@ -159,23 +159,41 @@ class Cube(object):
             return Cube(nx, ny, nz)
     def distanceTo(self,dst):return (abs(self.x - dst.x) + abs(self.y - dst.y) + abs(self.z - dst.z)) // 2
     
-    
+class EntityType:
+        SHIP, BARREL, MINE, CANNONBALL=0,1,2,3
+class Action:
+        FASTER, SLOWER, PORT, STARBOARD, FIRE, MINE=0,1,2,3,4,5    
 class Entity(object):
     def __init__(self,entityId,x,y):self.entityId,self.position=entityId,Case(x,y)
-    def distance(self,e):return self.position.distance(e.position)
 class Ship(Entity):
     def __init__(self,entityId,arg1,arg2,arg3,arg4,x,y):
         Entity.__init__(self,entityId,x,y)
+        self.entityType=EntityType.SHIP
         self.initialHealth=100
-        self.orientAction,self.speed,self.rhum,self.owner=arg1,arg2,arg3,arg4 
-        self.beforeToMine=0
-        self.beforeToFire=0
+        self.orientAction,self.speed,self.health,self.owner=arg1,arg2,arg3,arg4 
+        self.mineCooldown=0
+        self.cannonCooldown=0
         self.newOrientAction=0
         self.newBowCoordinate=None
         self.newSternCoordinate=None
         self.action=None
         self.target=None
-        
+        self.head,self.back=self.computeHeadBack()
+    def computeHeadBack(self):
+        if self.orientation==0:return Case(x-1,y),Case(x+1,y)
+        elif self.orientation==3:return Case(x+1,y),Case(x-1,y)
+        elif self.orientation==1:
+            if self.position.y%2==0:return Case(x,y-1),Case(x-1,y+1)
+            else:return Case(x+1,y-1),Case(x-1,y+1)
+        elif self.orientation==4:
+            if self.position.y%2==0:return Case(x-1,y+1),Case(x,y-1)
+            else:return Case(x-1,y+1),Case(x+1,y-1)
+        elif self.orientation==5:
+            if self.position.y%2==0:return Case(x,y+1),Case(x-1,y-1)
+            else:return Case(x+1,y+1),Case(x,y-1)
+        else:
+            if self.position.y%2==0:return Case(x,y-1),Case(x-1,y+1)
+            else:return Case(x+1,y-1),Case(x-1,y+1)    
     def  moveTo(x,y):
         currentPosition=self.position
         target=Case(x,y)
@@ -256,8 +274,8 @@ class Ship(Entity):
     def newBow(self):return self.position.neighbor(self.newOrientAction)
     def fire(self,x,y):self.target = Coord(x, y);self.action = 5
     def heal(self, health):
-        self.rhum+=health
-        if (self.rhum > 100):self.rhum = 100
+        self.health+=health
+        if (self.health > 100):self.health = 100
     def newPositionsIntersect(self, other):
         sternCollision = self.newSternCoordinate != None and (self.newSternCoordinate.equals(other.newBowCoordinate)or self.newSternCoordinate.equals(other.newPosition) or self.newSternCoordinate.equals(other.newSternCoordinate))
         centerCollision =self.newPosition != None and (self.newPosition.equals(other.newBowCoordinate) or newPosition.equals(other.newPosition)or self.newPosition.equals(other.newSternCoordinate))
@@ -267,29 +285,34 @@ class Ship(Entity):
             if (self != other and self.newPositionsIntersect(other)):return True
         return False
     def damage(self, health):
-        self.rhum -= health
-        if (self.rhum <= 0):self.rhum= 0
+        self.health -= health
+        if (self.health <= 0):self.health= 0
 
     '''def fire(self,ships):
         global gameGrid
-        if self.beforeToFire!=0:self.updateFire();return None
+        if self.cannonCooldown!=0:self.updateFire();return None
         for s in ships:
                 c=s.position
                 d=self.position.distanceTo(c)
                 tours=round((d+1)//3)    
                 for i in range(tours*s.speed):c=c.neighbor(s.orientAction)
                 d=c.distanceTo(self.position)
-                if d<=10 and c.valide():self.beforeToFire=1;gameGrid[c.x][c.y]=50;return Fire(c.x,c.y)
+                if d<=10 and c.valide():self.cannonCooldown=1;gameGrid[c.x][c.y]=50;return Fire(c.x,c.y)
         return None'''
 
 class Damage(object):
     def __init__(self,position,health,hit):self.position,self.health,self.hit=position,health,hit
 
 class Barrel(Entity):
-    def __init__(self,entityId,arg1,x,y):Entity.__init__(self,entityId,x,y);self.rhum=arg1
+    def __init__(self,entityId,arg1,x,y):
+        self.entityType=EntityType.BARREL
+        Entity.__init__(self,entityId,x,y)
+        self.health=arg1
 
 class Mine(Entity):
-    def __init__(self,entityId,x,y):Entity.__init__(self,entityId,x,y)
+    def __init__(self,entityId,x,y):
+        Entity.__init__(self,entityId,x,y)
+        self.entityType=EntityType.MINE
     def explode(self,ships, force):
         damage = []
         victim = None
@@ -313,15 +336,18 @@ class Mine(Entity):
                         damage +=[Damage(impactPositionn, 10, True)]
 
         return damage
-
 class Cannoball(Entity):
-    def __init__(self,entityId,x,y,arg1,arg2):Entity.__init__(self,entityId,x,y);self.owner,self.remainingTurns=arg1,arg2
+    def __init__(self,x,y,ownerEntityId,srcX,srcY,remainingTurns):
+            Entity.__init__(self,x,y)
+            self.entityType=EntityType.CANNONBALL
+            self.srcX,self.srcY=srcX,srcY
+            self.ownerEntityId,self.remainingTurns,self.initialRemainingTurns=ownerEntityId,remainingTurns,remainingTurns
 class Action(object):
     def __init__(self,x,y):self.x,self.y=x,y
 class Move(Action):
      def __init__(self,x,y):Action.__init__(self,x,y)
      def __str__(self):return "MOVE {} {}".format(self.x, self.y)
-     def utility(self,player):return maxBareel-payer.ships[-1].rhum+1
+     def utility(self,player):return maxBareel-payer.ships[-1].health+1
      
 class Fire(Action):
      def __init__(self,x,y):Action.__init__(self,x,y)
@@ -365,31 +391,53 @@ class Player(object):
              
 class Game(object):
     def __init__(self):
-        self.players,self.mines,self.barrels,self.cannonballs=[],[],[],[]
+        self.players,self.mines,self.barrels,self.cannonballs=[Player(0,[]),Player(1,[])],[],[],[]
         self.cannonBallExplosions=[]
         self.damage=[]
         self.turn=0
     def updateInput(self):
         global gameGrid
         gameGrid=[[0 for i in range(21)] for j in range(23)]
-        self.mines,self.barrels,self.cannonballs,self.players=[],[],[],[Player(0,[]),Player(1,[])]
+        self.mines,self.barrels=[],[]
         my_ship_count = int(input())  # the number of remaining ships
         entity_count = int(input())  # the number of entities (e.g. ships, mines or cannonballs)
-        for i in range(entity_count):
-            entity_id, entityType, x, y, arg_1, arg_2, arg_3, arg_4 = input().split()
-            entity_id = int(entity_id)
-            x = int(x)
-            y = int(y)
-            arg_1 = int(arg_1)
-            arg_2 = int(arg_2)
-            arg_3 = int(arg_3)
-            arg_4 = int(arg_4)
-            if entityType =='SHIP':self.players[arg_4].ships+=[Ship(entity_id,arg_1, arg_2, arg_3, arg_4,x,y)];gameGrid[x][y]=1-arg_4
-            elif entityType =='BARREL':self.barrels+=[Barrel(entity_id,arg_1,x,y)];gameGrid[x][y]=arg_1
-            elif entityType =='CANNONBALL':
-                self.cannonballs+=[Cannoball(entity_id,arg_1, arg_2,x,y)]
-                if arg_2<=1:gameGrid[x][y]=-50
-            elif entityType =='MINE':self.mines+=[Mine(entity_id,x,y)];gameGrid[x][y]=-25
+        if self.turn==0:
+            for i in range(entity_count):
+                entity_id, entityType, x, y, arg_1, arg_2, arg_3, arg_4 = input().split()
+                entity_id = int(entity_id)
+                x = int(x)
+                y = int(y)
+                arg_1 = int(arg_1)
+                arg_2 = int(arg_2)
+                arg_3 = int(arg_3)
+                arg_4 = int(arg_4)
+                if entityType =='SHIP':self.players[arg_4].ships+=[Ship(entity_id,arg_1, arg_2, arg_3, arg_4,x,y)]
+                elif entityType =='BARREL':self.barrels+=[Barrel(entity_id,arg_1,x,y)]
+                elif entityType =='MINE':self.mines+=[Mine(entity_id,x,y)]
+        else:
+            for i in range(entity_count):
+                entity_id, entityType, x, y, arg_1, arg_2, arg_3, arg_4 = input().split()
+                entity_id = int(entity_id)
+                x = int(x)
+                y = int(y)
+                arg_1 = int(arg_1)
+                arg_2 = int(arg_2)
+                arg_3 = int(arg_3)
+                arg_4 = int(arg_4)
+                if entityType =='SHIP':
+                    ship=filter(lambda x: x.entityId == entity_id, self.players[arg_4].ships)
+                    if ship:=ship.orientation,ship.speed,ship.health,ship.position= arg_1, arg_2, arg_3,Case(x,y)
+                elif entityType =='BARREL':self.barrels+=[Barrel(entity_id,arg_1,x,y)]
+                elif entityType =='CANNONBALL':
+                    ball=filter(lambda x: x.entityId == entity_id, self.cannonballs)
+                    if ball:ball.remainingTurns=arg2
+                    else:
+                        ship=filter(lambda x: x.entityId == arg1, self.players[0].ships+self.players[1].ships)
+                        head=ship.computeHeadBack()[0]
+                        source=head.position
+                        self.cannonballs+=[Cannoball(entity_id,x,y,arg_1,source.x,source.y,arg_2)]
+                elif entityType =='MINE':self.mines+=[Mine(entity_id,x,y)]
+            
         self.turn+=1
     def decrementRum(self):
         ships=self.players[0].ships+self.players[1].ships
@@ -397,7 +445,7 @@ class Game(object):
     def updateInitialRum(self):
         ships=self.players[0].ships+self.players[1].ships
         for ship in ships:
-            ship.initialHealth = ship.rhum
+            ship.initialHealth = ship.health
     def moveCannonballs(self):
         for ball in self.cannonballs:
             if (ball.remainingTurns == 0):del canon;continue
@@ -408,7 +456,7 @@ class Game(object):
         stern = ship.stern()
         center = ship.position
         for barrel in self.barrels:
-            if (barrel.position.equals(bow) or barrel.position.equals(stern) or barrel.position.equals(center)):ship.heal(barrel.rhum);del barrel
+            if (barrel.position.equals(bow) or barrel.position.equals(stern) or barrel.position.equals(center)):ship.heal(barrel.health);del barrel
     def checkMineCollisions(self):
         ships=self.players[0].ships+self.players[1].ships
         for min in self.mines:
@@ -546,8 +594,8 @@ class Game(object):
     def applyActions(self):
         ships=self.players[0].ships+self.players[1].ships
         for ship in ships:
-            if ship.beforeToMine>0:ship.beforeToMine-=1
-            if ship.beforeToFire>0:ship.beforeToFire-=1
+            if ship.mineCooldown>0:ship.mineCooldown-=1
+            if ship.cannonCooldown>0:ship.cannonCooldown-=1
             ship.newOrientAction = ship.orientAction
             if (ship.action != None):
                 if ship.action==0:
@@ -557,7 +605,7 @@ class Game(object):
                 elif ship.action==2:ship.newOrientAction = (ship.orientAction + 1) % 6
                 elif ship.action==3:ship.newOrientAction = (ship.orientAction + 3) % 6
             elif ship.action==4:
-                 if (ship.beforeToMine == 0):
+                 if (ship.mineCooldown == 0):
                     target = ship.stern().neighbor((ship.orientAction + 3) % 6)
                     if (target.valide()):
                         cellIsFreeOfBarrels=None
@@ -567,14 +615,14 @@ class Game(object):
                         for mine in self.mines:cellIsFreeOfMines = not mine.position.equals(target)
                         for oShip in ships:cellIsFreeOfShips = (oShip!=ship and not oShip.position.equals(target))
                         if (cellIsFreeOfBarrels and  cellIsFreeOfShips and cellIsFreeOfMines):
-                            ship.beforeToMine = 5
+                            ship.mineCooldown = 5
                             self.mines+=[Mine(target.x, target.y)]
             elif ship.action==5:
                 distance = ship.bow().distanceTo(ship.target)
-                if (ship.target.valide() and distance <= 10 and ship.beforeToFire == 0):
+                if (ship.target.valide() and distance <= 10 and ship.cannonCooldown == 0):
                     travelTime = (int) (1 + round(ship.bow().distanceTo(ship.target) / 3.0))
                     cannonballs+=[Cannonball(ship.target.x, ship.target.y, ship.id, ship.bow().x, ship.bow().y, travelTime)]
-                    ship.beforeToFire=2
+                    ship.cannonCooldown=2
     def clone(self): 
         g=Game()
         g.players=copy.copy(self.players)    
