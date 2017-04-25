@@ -1,3 +1,15 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
+
+using namespace std;
+
+/**
+ * Auto-generated code below aims at helping you parse
+ * the standard input according to the problem statement.
+ **/
+
 
 #define SHIELD_PROB 20
 #define X 5
@@ -9,7 +21,8 @@ class Point
 {
 	
 public:
-	float x,y,sx,sy;
+	float x,y;
+	Point(float x,float y):x(x),y(y){}
 	Point();
 	~Point();
 	float distance2(Point p){
@@ -22,7 +35,7 @@ public:
 	    float da = b.y - a.y;
 	    float db = a.x - b.x;
 	    float c1 = da*a.x + db*a.y;
-	    float c2 = -db*this.x + da*this.y;
+	    float c2 = -db*x + da*y;
 	    float det = da*da + db*db;
 	    float cx = 0;
 	    float cy = 0;
@@ -32,19 +45,11 @@ public:
 	        cy = (da*c2 + db*c1) / det;
 	    } else {
 	        // The point is already on the line
-	        cx = this.x;
-	        cy = this.y;
+	        cx = x;
+	        cy = y;
 	    }
 
-	    return new Point(cx, cy);
-	}
-	virtual void save(){
-		sx = x;
-        sy = y;
-	}
-	virtual void reset(){
-		x = sx;
-        y = sy;
+	    return Point(cx, cy);
 	}
 	
 };
@@ -57,10 +62,10 @@ public:
 	~Unit();
 	Collision collision(Unit u) {
 	    // Square of the distance
-	    float dist = this.distance2(u);
+	    float dist = distance2(u);
 
 	    // Sum of the radii squared
-	    float sr = (this.r + u.r)*(this.r + u.r);
+	    float sr = (r + u.r)*(r + u.r);
 
 	    // We take everything squared to avoid calling sqrt uselessly. It is better for performances
 
@@ -70,16 +75,16 @@ public:
 	    }
 
 	    // Optimisation. Objects with the same speed will never collide
-	    if (this.vx == u.vx && this.vy == u.vy) {
+	    if (vx == u.vx && vy == u.vy) {
 	        return null;
 	    }
 
 	    // We place ourselves in the reference frame of u. u is therefore stationary and is at (0,0)
-	    float x = this.x - u.x;
-	    float y = this.y - u.y;
+	    float x = x - u.x;
+	    float y = y - u.y;
 	    Point myp = new Point(x, y);
-	    float vx = this.vx - u.vx;
-	    float vy = this.vy - u.vy;
+	    float vx = vx - u.vx;
+	    float vy = vy - u.vy;
 	    Point up = new Point(0, 0)
 
 	    // We look for the closest point to u (which is in (0,0)) on the line described by our speed vector
@@ -124,22 +129,22 @@ public:
 	void bounce(Unit u) {
 	    if (u instanceof Checkpoint) {
 	        // Collision with a checkpoint
-	       this.timeout=100;
-			this.checked+=1;
+	       timeout=100;
+			checked+=1;
 	    } else {
 	        // If a pod has its shield active its mass is 10 otherwise it's 1
-	        float m1 = this.shield ? 10 : 1;
+	        float m1 = shield ? 10 : 1;
 	        float m2 = u.shield ? 10 : 1;
 	        float mcoeff = (m1 + m2) / (m1 * m2);
 
-	        float nx = this.x - u.x;
-	        float ny = this.y - u.y;
+	        float nx = x - u.x;
+	        float ny = y - u.y;
 
 	        // Square of the distance between the 2 pods. This value could be hardcoded because it is always 800²
 	        float nxnysquare = nx*nx + ny*ny;
 
-	        float dvx = this.vx - u.vx;
-	        float dvy = this.vy - u.vy;
+	        float dvx = vx - u.vx;
+	        float dvy = vy - u.vy;
 
 	        // fx and fy are the components of the impact vector. product is just there for optimisation purposes
 	        float product = nx*dvx + ny*dvy;
@@ -147,8 +152,8 @@ public:
 	        float fy = (ny * product) / (nxnysquare * mcoeff);
 
 	        // We apply the impact vector once
-	        this.vx -= fx / m1;
-	        this.vy -= fy / m1;
+	        vx -= fx / m1;
+	        vy -= fy / m1;
 	        u.vx += fx / m2;
 	        u.vy += fy / m2;
 
@@ -160,8 +165,8 @@ public:
 	        }
 
 	        // We apply the impact vector a second time
-	        this.vx -= fx / m1;
-	        this.vy -= fy / m1;
+	        vx -= fx / m1;
+	        vy -= fy / m1;
 	        u.vx += fx / m2;
 	        u.vy += fy / m2;
 
@@ -170,35 +175,22 @@ public:
 	    }
 	}
 	
-	virtual void print() {}
-
-    virtual void save() {
-    	Point::save();
-        svx = vx;
-        svy = vy;
-    }
-
-    virtual void reset() {
-        Point::reset();
-        vx = svx;
-        vy = svy;
-    }
 	
 };
 class Pod : public Unit
 {
 public:
-	float angle,sangle;
-	int nextCheckpointId,snextCheckpointId,checked,schecked,timeout,stimeout;
+	float angle;
+	int nextCheckpointId,checked,timeout;
 	Pod partener;
-	bool shield,sshield;
+	bool shield;
 
 	Pod();
 	~Pod();
 	float getAngle(Point p) {
-	    float d = this.distance(p);
-	    float dx = (p.x - this.x) / d;
-	    float dy = (p.y - this.y) / d;
+	    float d = distance(p);
+	    float dx = (p.x - x) / d;
+	    float dy = (p.y - y) / d;
 
 	    // Simple trigonometry. We multiply by 180.0 / PI to convert radiants to degrees.
 	    float a = acos(dx) * 180.0 / PI;
@@ -211,12 +203,12 @@ public:
 	    return a;
 	}
 	float diffAngle(Point p) {
-	    float a = this.getAngle(p);
+	    float a = getAngle(p);
 
 	    // To know whether we should turn clockwise or not we look at the two ways and keep the smallest
 	    // The ternary operators replace the use of a modulo operator which would be slower
-	    float right = this.angle <= a ? a - this.angle : 360.0 - this.angle + a;
-	    float left = this.angle >= a ? this.angle - a : this.angle + 360.0 - a;
+	    float right = angle <= a ? a - angle : 360.0 - angle + a;
+	    float left = angle >= a ? angle - a : angle + 360.0 - a;
 
 	    if (right < left) {
 	        return right;
@@ -226,7 +218,7 @@ public:
 	    }
 	}
 	void rotate(Point p) {
-	    float a = this.diffAngle(p);
+	    float a = diffAngle(p);
 
 	    // Can't turn by more than 18° in one turn
 	    if (a > 18.0) {
@@ -235,50 +227,50 @@ public:
 	        a = -18.0;
 	    }
 
-	    this.angle += a;
+	    angle += a;
 
 	    // The % operator is slow. If we can avoid it, it's better.
-	    if (this.angle >= 360.0) {
-	        this.angle = this.angle - 360.0;
-	    } else if (this.angle < 0.0) {
-	        this.angle += 360.0;
+	    if (angle >= 360.0) {
+	        angle = angle - 360.0;
+	    } else if (angle < 0.0) {
+	        angle += 360.0;
 	    }
 	}
 	void boost(int thrust) {
 	  // Don't forget that a pod which has activated its shield cannot accelerate for 3 turns
-	    if (this.shield) {
+	    if (shield) {
 	        return;
 	    }
 
 	    // Conversion of the angle to radiants
-	    float ra = this.angle * PI / 180.0;
+	    float ra = angle * PI / 180.0;
 
 	    // Trigonometry
-	    this.vx += cos(ra) * thrust;
-	    this.vy += sin(ra) * thrust;
+	    vx += cos(ra) * thrust;
+	    vy += sin(ra) * thrust;
 	}
 	void move(float t) {
-	    this.x += this.vx * t;
-	    this.y += this.vy * t;
+	    x += vx * t;
+	    y += vy * t;
 	}
 	void end() {
-	    this.x = round(this.x);
-	    this.y = round(this.y);
-	    this.vx = truncate(this.vx * 0.85);
-	    this.vy = truncate(this.vy * 0.85);
+	    x = round(x);
+	    y = round(y);
+	    vx = truncate(vx * 0.85);
+	    vy = truncate(vy * 0.85);
 
 	    // Don't forget that the timeout goes down by 1 each turn. It is reset to 100 when you pass a checkpoint
-	    this.timeout -= 1;
+	    timeout -= 1;
 	}
 	void play(Point p, int thrust) {
-	    this.rotate(p);
-	    this.boost(thrust);
-	    this.move(1.0);
-	    this.end();
+	    rotate(p);
+	    boost(thrust);
+	    move(1.0);
+	    end();
 	}
 	
 	void output(Move move) {
-	    float a = this.angle + move.angle;
+	    float a = angle + move.angle;
 
 	    if (a >= 360.0) {
 	        a = a - 360.0;
@@ -289,8 +281,8 @@ public:
 	    // Look for a point corresponding to the angle we want
 	    // Multiply by 10000.0 to limit rounding errors
 	    a = a * PI / 180.0;
-	    float px = this.x + cos(a) * 10000.0;
-	    float py = this.y + sin(a) * 10000.0;
+	    float px = x + cos(a) * 10000.0;
+	    float py = y + sin(a) * 10000.0;
 
 	    if (move.shield) {
 	        print(round(px), round(py), "SHIELD");
@@ -300,34 +292,13 @@ public:
 	    }
 	}
 	float score() {
-    	return this.checked*50000 - this.distance(checkpoints[this.nextCheckpointId]);
+    	return checked*50000 - distance(checkpoints[nextCheckpointId]);
 	}
 	void apply(Move move){
-		this.angle=move.angle;
-		this.shield=move.shield;
-		this.thrust=move.thrust;
+		angle=move.angle;
+		shield=move.shield;
+		thrust=move.thrust;
 	}
-
-
-	 virtual void save() {
-        Unit::save();
-        sangle=angle;
-		snextCheckpointId=nextCheckpointId;
-		schecked,checked;
-		stimeout,timeout;
-		spartener=partener;
-		sshield=shield;
-    }
-
-    virtual void reset() {
-        Unit::reset();
-        angle=sangle;
-		nextCheckpointId=snextCheckpointId;
-		checked=schecked;
-		timeout=stimeout;
-		partener=spartener;
-		shield=sshield;
-    }
 };
 class Collision {
 	public:
@@ -350,8 +321,8 @@ class Move {
     bool shield=false;
 
     void mutate(float amplitude) {
-	    float ramin = this.angle - 36.0 * amplitude;
-	    float ramax = this.angle + 36.0 * amplitude;
+	    float ramin = angle - 36.0 * amplitude;
+	    float ramax = angle + 36.0 * amplitude;
 
 	    if (ramin < -18.0) {
 	        ramin = -18.0;
@@ -363,11 +334,11 @@ class Move {
 
 	    angle = random(ramin, ramax);
 
-	    if (!this.shield && random(0, 100) < SHIELD_PROB) {
-	        this.shield = true;
+	    if (!shield && random(0, 100) < SHIELD_PROB) {
+	        shield = true;
 	    } else {
-	        int pmin = this.thrust - 200 * amplitude;
-	        int pmax = this.thrust + 200 * amplitude;
+	        int pmin = thrust - 200 * amplitude;
+	        int pmax = thrust + 200 * amplitude;
 
 	        if (pmin < 0) {
 	            pmin = 0;
@@ -377,9 +348,9 @@ class Move {
 	            pmax = 200;
 	        }
 
-	        this.thrust = random(pmin, pmax);
+	        thrust = random(pmin, pmax);
 
-	        this.thrust = false;
+	        thrust = false;
 	    }
 	}
 
@@ -500,4 +471,48 @@ void test(){
 	    }
 	    time=time()-time;
 	}
+}
+int main()
+{
+    int laps;
+    cin >> laps; cin.ignore();
+    int checkpointCount;
+    cin >> checkpointCount; cin.ignore();
+    for (int i = 0; i < checkpointCount; i++) {
+        int checkpointX;
+        int checkpointY;
+        cin >> checkpointX >> checkpointY; cin.ignore();
+    }
+
+    // game loop
+    while (1) {
+        for (int i = 0; i < 2; i++) {
+            int x; // x position of your pod
+            int y; // y position of your pod
+            int vx; // x speed of your pod
+            int vy; // y speed of your pod
+            int angle; // angle of your pod
+            int nextCheckPointId; // next check point id of your pod
+            cin >> x >> y >> vx >> vy >> angle >> nextCheckPointId; cin.ignore();
+        }
+        for (int i = 0; i < 2; i++) {
+            int x2; // x position of the opponent's pod
+            int y2; // y position of the opponent's pod
+            int vx2; // x speed of the opponent's pod
+            int vy2; // y speed of the opponent's pod
+            int angle2; // angle of the opponent's pod
+            int nextCheckPointId2; // next check point id of the opponent's pod
+            cin >> x2 >> y2 >> vx2 >> vy2 >> angle2 >> nextCheckPointId2; cin.ignore();
+        }
+
+        // Write an action using cout. DON'T FORGET THE "<< endl"
+        // To debug: cerr << "Debug messages..." << endl;
+
+
+        // You have to output the target position
+        // followed by the power (0 <= thrust <= 100)
+        // i.e.: "x y thrust"
+        cout << "8000 4500 100" << endl;
+        cout << "8000 4500 100" << endl;
+    }
 }
