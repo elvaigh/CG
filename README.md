@@ -1,2 +1,2 @@
 # CG
-I'm Ngamou on condingame and this is some of my solutions
+Codingame puzzles solutions try it out ;). Don't copy/past it's awfull. The more you try, the more you study.!
