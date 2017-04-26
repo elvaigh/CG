@@ -1,6 +1,6 @@
 import sys
 import math
-
+import queue
 # Save humans, destroy zombies!
 h,w=9000,16000
 zone=2000
@@ -41,15 +41,42 @@ class Enemy(Entity):
             return int(self.x+vect[0]),int(self.y+vect[1])
 def distance(x,y,a,b):
     return math.sqrt((x-a)**2+(y-b)**2)
-
+def valide(x,y):return x>-1 and x<9000 and y>-1 and y<16000
 # class Strategy(object):
-    
+def bfs(sx, sy):
+    curScore=-9999
+    q = queue.Queue()
+    q.put((sx, sy))
+    v = [[False for i in range(21)] for j in range(23)]
+    stackConut = 0
+    while(not q.empty()):
+        cur = q.get()
+        cx = cur[0]
+        cy = cur[1]
+        if (v[cx][cy]):continue
+        stackConut += 1
+        if (stackConut > 500):break
+        if (valide(cx, cy)):
+            if ( curScore<gameGrid[cx][cy]):curScore=gameGrid[cx][cy];target=[cx,cy]
+            nx,ny=cx+my_speed,cy+my_speed
+            if valide(nx, ny):q.put((nx, ny))
+            nx,ny=cx-my_speed,cy+my_speed
+            if valide(nx, ny):q.put((nx, ny))
+            nx,ny=cx+my_speed,cy-my_speed
+            if valide(nx, ny):q.put((nx, ny))
+            nx,ny=cx-my_speed,cy-my_speed
+            if valide(nx, ny):q.put((nx, ny))
+            v[cx][cy] = True
+        #print("Debug messages...",curScore,stackConut,cur,target, file=sys.stderr)
+    return None    
 
 # game loop
 human_count0=0
 k=0
 while True:
+    gameGrid = [[0 for i in range(9000)] for j in range(16000)]
     x, y = [int(i) for i in input().split()]
+    
     humans=[]
     enemies=[]
     dist=None
@@ -59,6 +86,7 @@ while True:
         k+=1
     for i in range(human_count):
         human_id, human_x, human_y = [int(j) for j in input().split()]
+        gameGrid[human_x][human_y]=100000
         if dist==None or dist>distance(x,y,human_x, human_y):
             dist=distance(x,y,human_x, human_y)
             a,b=human_x, human_y
@@ -68,6 +96,7 @@ while True:
     dist=None
     for i in range(zombie_count):
         zombie_id, zombie_x, zombie_y, zombie_xnext, zombie_ynext = [int(j) for j in input().split()]
+        gameGrid[zombie_id][zombie_y]=10*human_count
         e=Enemy(zombie_id, zombie_xnext, zombie_ynext,distance(x,y,zombie_x, zombie_y),humans)
         enemies.append(e)
         if dist==None or dist>distance(x,y,zombie_xnext, zombie_ynext):
@@ -83,7 +112,7 @@ while True:
     if human_count0==4:
         a,b=human_x, human_y
     
-    print(a,b)
+    print(bfs(x,y))
         # Write an action using print
     # To debug: print("Debug messages...", file=sys.stderr)
 
