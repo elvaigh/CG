@@ -1,60 +1,79 @@
 import sys
 import math
-X=[]
-Y=[]
-P=[]
+import copy
+
+def move(old, new):
+    if old[0] < new[0]:return "RIGHT"
+    if old[1] < new[1]:return "DOWN"
+    if old[0] > new[0]:return "LEFT"
+    return "UP"
+NEIGHBOURS = {}
 for i in range(30):
     for j in range(20):
-        P.append([i,j])
-def present( x, y):
-    if x<0 or x>29 or y<0 or y>19:
-        return 1
-    else:
-        if [x,y] in X or [x,y] in Y:
-            return 1
-    return 0;
-
-def decouper(xi,yi):
-    a,b,c,d=0,0,0,0
-    for i in P:
-        if i not in Y and i not in X:
-            if present(xi-1, yi)==0 and i[0]<xi:
-                a+=1
-            elif present(xi+1, yi)==0  and i[0]>xi:
-                b+=1
-            elif present(xi, yi-1)==0 and i[1]<yi:
-                c+=1
-            elif present(xi, yi+1)==0 and i[1]>yi:
-                d+=1
-    if max(a,b,c,d)==a:
-        print('LEFT')
-    elif max(a,b,c,d)==b:
-        print('RIGHT')
-    elif max(a,b,c,d)==c:
-        print('UP')
-    elif max(a,b,c,d)==d:
-        print('DOWN')
-    else:
-        jouer(xi,yi)
-
-def jouer(xi,yi):
-    if present(xi+1,yi)==0:
-            print("RIGHT")
-    elif present(xi-1,yi)==0:
-            print("LEFT")
-    elif present(xi,yi-1)==0:
-            print("UP")
-    elif present(xi,yi+1)==0:
-            print("DOWN")
-j=0
+        neighbours = []
+        if i < 29:
+            neighbours.append((i + 1, j))
+        if i > 0:
+            neighbours.append((i - 1, j))
+        if j < 19:
+            neighbours.append((i, j + 1))
+        if j > 0:
+            neighbours.append((i, j - 1))
+        NEIGHBOURS[(i, j)] = neighbours
+def get_score(starts):
+    t1 = time.time()
+    graphs = {i: {} for i in range(n_players)}
+    graphset = set(x for x in occupied)
+    order = list(range(n_players))
+    it = 1
+    #board = [['.' for j in range(30)] for i in range(20)]
+    while True:
+        full = True
+        moves = {}
+        for o in order:
+            for x in starts[o]:
+                for n in NEIGHBOURS[x]:
+                    if n not in graphset or (n in moves and it == 1):
+                        full = False
+                        graphset.add(n)
+                        moves[n] = o
+        for k, v in moves.items():
+            graphs[v][k] = it
+            #board[k[1]][k[0]] = v
+        if full:
+            break
+        starts = [[k for k, v in moves.items() if v == i] for i in range(n_players)]
+        it += 1
+    num_my_tiles = len(graphs[my_id])
+    num_enemy_tiles = sum([len(graphs[i]) for i in range(n_players) if i != my_id])
+    enemies_dist = sum([sum(graphs[i].values()) for i in range(n_players) if i != my_id])
+    # err("t", time.time() - t1)
+    return sum([num_my_tiles * 10000000, num_enemy_tiles * -100000, enemies_dist])
+occupied = {}
 while True:
-    n, p = [int(i) for i in input().split()]
-    xi,yi=0,0
-    for i in range(n):
+    n_players, my_id = [int(i) for i in input().split()]
+    moves = []
+    for i in range(n_players):
         x0, y0, x1, y1 = [int(j) for j in input().split()]
-        if i==p:
-            X.append([x1,y1])
-            xi,yi=x1,y1
-        else:
-            Y.append([x1,y1])
-    decouper(xi,yi)
+        occupied[(x0, y0)] = i
+        occupied[(x1, y1)] = i
+        moves.append((x1, y1))
+    for i in range(n_players):
+        if moves[i] == (-1, -1):
+            occupied = {k: v for k, v in occupied.items() if v != i}
+    for p in range(n_players):
+        x1, y1 = moves[p]
+        if p == my_id:
+            me = (x1, y1)
+            scores = []
+            for neighbour in NEIGHBOURS[me]:
+                if neighbour not in occupied:
+                    player_starts = [[x] for x in curr_moves.copy()]
+                    player_starts[my_id] = [neighbour]
+                    for i, cm in enumerate(curr_moves):
+                        if cm == (-1, -1):
+                            player_starts[i] = []
+                    score = get_score(player_starts)
+                    scores.append((score, neighbour))
+    best_score_move = sorted(scores, key=lambda x: x[0], reverse=True)[0]
+    print(move_to_dir(me, best_score_move[-1]))

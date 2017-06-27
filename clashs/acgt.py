@@ -1,0 +1,1 @@
+print(*map(input().count,"ACGT"))
